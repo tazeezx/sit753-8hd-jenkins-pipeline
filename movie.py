@@ -5,12 +5,14 @@ from flask_sqlalchemy import SQLAlchemy
 project_dir = os.path.dirname(os.path.abspath(__file__))
 database_file = "sqlite:///{}".format(os.path.join(project_dir, "Movies.db"))
 
+from prometheus_flask_exporter import PrometheusMetrics
+
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = database_file
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
+metrics = PrometheusMetrics(app)
 
 class Movie(db.Model):
     title = db.Column(db.String(80), unique=True, nullable=False, primary_key=True)
@@ -71,4 +73,4 @@ def delete():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run("0.0.0.0", debug=True)
+    app.run("0.0.0.0", debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")
