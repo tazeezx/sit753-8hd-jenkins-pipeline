@@ -18,11 +18,12 @@ pipeline {
         stage('Test') {
             steps {
                 sh """
-                    docker run --rm \
-                        -v \${WORKSPACE}:/app \
-                        -w /app \
-                        ${IMAGE_NAME}:${BUILD_NUMBER} \
+                    docker rm -f test-${BUILD_NUMBER} || true
+                    docker run --name test-${BUILD_NUMBER} ${IMAGE_NAME}:${BUILD_NUMBER} \
                         sh -c "pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml:coverage.xml -v"
+                    docker cp test-${BUILD_NUMBER}:/app/test-results.xml .
+                    docker cp test-${BUILD_NUMBER}:/app/coverage.xml .
+                    docker rm test-${BUILD_NUMBER}
                 """
             }
             post {
@@ -34,19 +35,40 @@ pipeline {
 
         stage('Code Quality') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+               withSonarQubeEnv('SonarQube') {
                     sh '''
-                        docker run --rm \
+                        docker rm -f sonar-${BUILD_NUMBER} || true
+                        docker run --name sonar-${BUILD_NUMBER} \
                             --network jenkins-net \
                             -e SONAR_HOST_URL="$SONAR_HOST_URL" \
                             -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
-                            -v "$WORKSPACE":/usr/src \
+                            --entrypoint sh \
+                            sonarsource/sonar-scanner-cli \
+                            -c "mkdir -p /usr/src && cd /usr/src && echo placeholder" || true
+                        docker rm -f sonar-${BUILD_NUMBER} || true
+
+                        docker create --name sonar-${BUILD_NUMBER} \
+                            --network jenkins-net \
+                            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+                            -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
+                            -w /usr/src \
                             sonarsource/sonar-scanner-cli \
                             -Dsonar.projectKey=movie-crud-flask \
                             -Dsonar.sources=. \
                             -Dsonar.python.version=3.11 \
-                            -Dsonar.exclusions="tests/**,**/*.html,**/*.css" \
+                            -Dsonar.exclusions=tests/**,**/*.html,**/*.css \
                             -Dsonar.python.coverage.reportPaths=coverage.xml
+
+                        docker cp movie.py sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp requirements.txt sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp templates sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp static sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp tests sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp sonar-project.properties sonar-${BUILD_NUMBER}:/usr/src/
+                        docker cp coverage.xml sonar-${BUILD_NUMBER}:/usr/src/ || true
+
+                        docker start -a sonar-${BUILD_NUMBER}
+                        docker rm sonar-${BUILD_NUMBER}
                     '''
                 }
             }
@@ -55,19 +77,20 @@ pipeline {
         stage('Security') {
             steps {
                 sh """
-                    docker run --rm \
-                        -v \${WORKSPACE}:/app \
-                        -w /app \
-                        ${IMAGE_NAME}:${BUILD_NUMBER} \
+                    docker rm -f sec-${BUILD_NUMBER} || true
+                    docker run --name sec-${BUILD_NUMBER} ${IMAGE_NAME}:${BUILD_NUMBER} \
                         sh -c "pip install bandit pip-audit --quiet && \
-                               bandit -r . --exclude ./tests -f txt -o bandit-report.txt || true && \
-                               pip-audit -r requirements.txt -f json -o pip-audit-report.json || true"
+                            bandit -r . --exclude ./tests -f txt -o bandit-report.txt || true && \
+                            pip-audit -r requirements.txt -f json -o pip-audit-report.json || true"
+                    docker cp sec-${BUILD_NUMBER}:/app/bandit-report.txt . || true
+                    docker cp sec-${BUILD_NUMBER}:/app/pip-audit-report.json . || true
+                    docker rm sec-${BUILD_NUMBER}
                 """
             }
             post {
                 always {
                     archiveArtifacts artifacts: 'bandit-report.txt,pip-audit-report.json',
-                                     allowEmptyArchive: true
+                                    allowEmptyArchive: true
                 }
             }
         }
