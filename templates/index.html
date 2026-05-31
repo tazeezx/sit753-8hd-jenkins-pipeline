@@ -1,48 +1,78 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-	<title>Movie DB</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Database</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        input[type="text"], input[type="number"] { padding: 6px; margin: 4px; }
+        button { padding: 6px 12px; cursor: pointer; }
+        .add-form { background: #f9f9f9; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
+        h1 { color: #333; }
+    </style>
 </head>
-  <body>
-    <h1 class="h1">Movie Database</h1>
-    <div>	
-    <h2 >Enter Name of the Movie:</h2>
-	    <form class="big_form" method="POST" action="/">
-	      <input type="text" name="title">
-	      <input type="submit" value="Add">
-	    </form>
+<body>
+    <h1>🎬 Movie Database</h1>
+
+    <!-- Add Movie Form -->
+    <div class="add-form">
+        <h2>Add a Movie</h2>
+        <form action="/" method="POST">
+            <input type="text"   name="title"  placeholder="Title"      required />
+            <input type="number" name="year"   placeholder="Year"       min="1888" max="2100" />
+            <input type="number" name="rating" placeholder="Rating 0-10" min="0" max="10" step="0.1" />
+            <button type="submit">Add</button>
+        </form>
     </div>
-    <h2>Movies List:</h2>
-    <table class="movie_table">
-    	<thead>
-    		<th>Title</th>
-    		<th>Update</th>
-    		<th>Delete</th>
-    	</thead>
-    	<tbody>
-    {% for movie in movies %}
-    		<tr>
-		      <td><p>{{movie.title}}</p></td>
-		      <td>
-		      	<div>
-			      <form method="POST" action="./update">
-			          <input type="hidden" value="{{movie.title}}" name="oldtitle">
-			          <input type="text" value="{{movie.title}}" name="newtitle">
-			          <input type="submit" value="Update">
-			      </form>
-		       	</div>
-		      </td>
-		      <td>
-		      	<div>
-			      <form method="POST" action="./delete">
-				      <input type="hidden" value="{{movie.title}}" name="title">
-				      <input type="submit" value="Delete">
-				  </form>
-		      	</div>
-		      </td>
-    		</tr>
-    {% endfor %}
-    	</tbody>
+
+    <!-- Movie List -->
+    {% if movies %}
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Year</th>
+                <th>Rating</th>
+                <th>Update</th>
+                <th>Delete</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for movie in movies %}
+            <tr>
+                <td>{{ movie.title }}</td>
+                <td>{{ movie.year if movie.year else '—' }}</td>
+                <td>{{ movie.rating if movie.rating else '—' }}</td>
+
+                <!-- Update form inline -->
+                <td>
+                    <form action="/update" method="POST" style="display:inline">
+                        <input type="hidden" name="oldtitle" value="{{ movie.title }}" />
+                        <input type="text"   name="newtitle" placeholder="New title" value="{{ movie.title }}" />
+                        <input type="number" name="year"     placeholder="Year"   value="{{ movie.year }}" min="1888" max="2100" />
+                        <input type="number" name="rating"   placeholder="Rating" value="{{ movie.rating }}" min="0" max="10" step="0.1" />
+                        <button type="submit">Update</button>
+                    </form>
+                </td>
+
+                <!-- Delete form -->
+                <td>
+                    <form action="/delete" method="POST" style="display:inline">
+                        <input type="hidden" name="title" value="{{ movie.title }}" />
+                        <button type="submit" onclick="return confirm('Delete {{ movie.title }}?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-  </body>
+    {% else %}
+        <p>No movies yet. Add one above!</p>
+    {% endif %}
+</body>
 </html>
